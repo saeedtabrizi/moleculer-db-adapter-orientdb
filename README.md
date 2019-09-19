@@ -1,9 +1,9 @@
 ![Moleculer logo](http://moleculer.services/images/banner.png)
 
-[![Build Status](https://travis-ci.org/SaeedTabrizi/moleculer-db-adapter-orientdb.svg?branch=master)](https://travis-ci.org/SaeedTabrizi/moleculer-db-adapter-orientdb)
-[![Coverage Status](https://coveralls.io/repos/github/SaeedTabrizi/moleculer-db-adapter-orientdb/badge.svg?branch=master)](https://coveralls.io/github/SaeedTabrizi/moleculer-db-adapter-orientdb?branch=master)
+[![Build Status](https://travis-ci.org/saeedtabrizi/moleculer-db-adapter-orientdb.svg?branch=master)](https://travis-ci.org/saeedtabrizi/moleculer-db-adapter-orientdb)
+[![Coverage Status](https://coveralls.io/repos/github/saeedtabrizi/moleculer-db-adapter-orientdb/badge.svg?branch=master)](https://coveralls.io/github/saeedtabrizi/moleculer-db-adapter-orientdb?branch=master)
 
-[![David](https://img.shields.io/david/SaeedTabrizi/moleculer-db-adapter-orientdb.svg)](https://david-dm.org/SaeedTabrizi/moleculer-db-adapter-orientdb)
+[![David](https://img.shields.io/david/saeedtabrizi/moleculer-db-adapter-orientdb.svg)](https://david-dm.org/SaeedTabrizi/moleculer-db-adapter-orientdb)
 [![Known Vulnerabilities](https://snyk.io/test/github/SaeedTabrizi/moleculer-db-adapter-orientdb/badge.svg)](https://snyk.io/test/github/SaeedTabrizi/moleculer-db-adapter-orientdb)
 [![Join the chat at https://gitter.im/moleculerjs/moleculer](https://badges.gitter.im/moleculerjs/moleculer.svg)](https://gitter.im/moleculerjs/moleculer?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
