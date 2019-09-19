@@ -4,5 +4,11 @@ cache:
   - node_modules
 node_js:
     - "12"
+services:
+  - docker
+before_install:
+  - docker pull orientdb
+  - docker run -d --name orientdb -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=root orientdb:latest
+  
 after_success:
   - npm run coverall
