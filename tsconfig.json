@@ -1,0 +1,30 @@
+{ 
+  "typeAcquisition": {"enable": true},
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "experimentalDecorators": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "maxNodeModuleJsDepth": 1,
+    "pretty": true,
+    "types": [
+      "jest",
+      "bluebird",
+      "node",
+      "orientjs"
+    ],
+    "sourceMap": true,
+    "target": "esnext",
+    "baseUrl": ".",
+    "outDir": "./lib"
+  },
+  "exclude": [
+    "node_modules",
+    "test"
+  ],
+  "include": [
+    "src/**/*.ts",
+    "examples/**/*.ts"
+  ]
+}

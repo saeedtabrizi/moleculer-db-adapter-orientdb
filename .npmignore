@@ -1,0 +1,15 @@
+.DS_Store
+node_modules/
+src/
+test/
+examples/
+coverage/
+.vscode/
+tsconfig.json
+tslint.json
+coverage/
+npm-debug.log
+stats.json
+yarn-error.log
+package-lock.json
+*.log
