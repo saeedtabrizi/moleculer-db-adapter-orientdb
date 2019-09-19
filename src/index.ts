@@ -69,21 +69,23 @@ export default class OrientDBAdapter {
   public async connect(): Promise<boolean> {
     const {  database, dataClass } = this.service.schema;
     const dataClient = this.opts[0] || {host: "localhost", port: 2424};
+    const serverCred = { username: dataClient.username, password: dataClient.password};
+    const dbOptions =  {...serverCred, ...database };
     try {
+      this.broker.logger.info(`Connecting to orientdb on host: '${dataClient.host}' , port : '${dataClient.port}' , username: ${dataClient.username}' , password: ${dataClient.password}' `);
       this.client = await orientjs.OrientDBClient.connect(dataClient);
-      const exists = await this.client.existsDatabase(database);
+      const exists = await this.client.existsDatabase(dbOptions);
       if (!exists) {
-        await this.client.createDatabase(database);
+        await this.client.createDatabase(dbOptions);
       }
       const sessions = await this.client.sessions(database);
       const dbPool = await sessions.acquire();
-      dbPool.once("close", () => {
-        this.service.logger.warn("Disconnected from db");
-      });
-      const clss = await dbPool.class.get(dataClass.name);
-      if (!clss) {
-        await dbPool.class.create(dataClass);
-      }
+      // dbPool.once("close", () => {
+      //   this.service.logger.warn("Disconnected from db");
+      // });
+      await dbPool.class.create(dataClass.name, dataClass.parentName,
+                                dataClass.cluster, dataClass.isAbstract,
+                                dataClass.ifnotexist);
       this.service.logger.warn(`Connected to "${dbPool.name}" db`);
       return true;
     } catch (error) {

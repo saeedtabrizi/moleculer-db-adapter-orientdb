@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "allowSyntheticDefaultImports": true,
+    "declaration": true,
+    "sourceMap": false,
+    "inlineSourceMap": false
+  },
+  "exclude": [
+    "node_modules","examples","test"
+  ],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ]
+}

@@ -1,23 +1,47 @@
 {
   "name": "moleculer-db-adapter-orientdb",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Moleculer orientdb database adapter",
-  "main": "index.js",
+  "main": "./lib/index.js",
+  "typings": "./lib/index.d.ts",
+  "typescript": {
+    "definition": "./lib/index.d.ts"
+  },
   "scripts": {
     "build": "tsc",
+    "build:release": "npm run-script clean:release && tsc --p ./tsconfig.release.json",
+    "clean": "npm run clean:dist",
+    "clean:release": "rm -rf ./lib/*",
+    "preversion": "npm test",
+    "version": "npm run build:release ",
+    "postversion": "npm run clean:release",
+    "release:major": "npm version major && git push origin && git push origin --tags",
+    "release:minor": "npm version minor && git push origin && git push origin --tags",
+    "release:patch": "npm version patch && git push origin && git push origin --tags",
+    "prepublishOnly": "npm run lint && npm run test && npm run build:release",
     "dev": "nodemon examples/index.ts",
     "ci": "jest --watch",
     "coverage": "jest --coverage",
     "test": "jest",
-    "lint": "tslint --project .",
-    "lint:fix": "tslint --project . --fix",
+    "lint": "tslint -t codeFrame 'src/**/*.ts' 'test/**/*.ts'",
+    "lint:fix": "tslint --fix 'src/**/*.ts' 'test/**/*.ts' -t verbose",
     "deps": "npm-check -u",
-    "coverall": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
+    "coverall": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
+    "db:start": "docker run -d --name orientdb -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=root orientdb:latest",
+    "db:stop": "docker container stop orientdb",
+    "db:remove": "docker container rm orientdb"
   },
   "keywords": [
     "moleculer",
-    "microservice"
+    "microservice",
+    "orientdb",
+    "adapter",
+    "orientdb-adapter"
   ],
+  "bugs": {
+    "url": "https://github.com/saeedtabrizi/moleculer-db-adapter-orientdb/issues"
+  },
+  "homepage": "https://github.com/saeedtabrizi/moleculer-db-adapter-orientdb#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/saeedtabrizi/moleculer-db-adapter-orientdb.git"
@@ -34,13 +58,13 @@
     "@types/node": "^12.7.5",
     "@types/orientjs": "^3.0.7",
     "benchmarkify": "2.1.2",
-    "coveralls": "3.0.6",
+    "coveralls": "^3.0.6",
     "eslint": "6.4.0",
     "jest": "24.9.0",
     "jest-cli": "24.9.0",
     "moleculer": "^0.13.10",
     "nodemon": "1.19.2",
-    "npm-check": "5.9.0",
+    "npm-check": "^5.9.0",
     "ts-jest": "^24.1.0",
     "ts-node": "^8.4.1",
     "tslint": "^5.20.0",
