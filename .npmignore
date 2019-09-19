@@ -13,3 +13,4 @@ stats.json
 yarn-error.log
 package-lock.json
 *.log
+tsconfig.*.json
