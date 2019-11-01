@@ -16,7 +16,7 @@ export interface QueryOptions {
     paging?: { page?: number; limit?: number };
     fields?: string[];
 }
-export default class OrientDBAdapter {
+export default class OrientDBAdapter implements DbAdapter {
   public opts: any[];
   public broker: ServiceBroker;
   public service: Service;
