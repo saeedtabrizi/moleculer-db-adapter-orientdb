@@ -2,13 +2,15 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noImplicitAny": false,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
   },
   "exclude": [
     "node_modules"
   ],
   "include": [
-    "**/*.ts",
-    "**/*.tsx"
+    "test/**/*.spec.ts",
+    "test/**/*.test.ts",
+    "types/*.d.ts",
   ]
 }

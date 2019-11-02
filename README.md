@@ -22,6 +22,15 @@ npm install moleculer-db-adapter-orientdb --save
 
 
 # Test
+Run orientdb server in docker
+```
+$ docker run -d --name orientdb -p 2424:2424 -p 2480:2480  -e ORIENTDB_ROOT_PASSWORD=root orientdb:latest
+```
+Or start orientdb docker if already exists container
+```
+$ docker start orientdb
+```
+Run test
 ```
 $ npm test
 ```
