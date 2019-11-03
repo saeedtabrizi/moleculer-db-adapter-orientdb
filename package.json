@@ -1,6 +1,6 @@
 {
   "name": "moleculer-db-adapter-orientdb",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Moleculer orientdb database adapter",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -57,7 +57,6 @@
     "@types/bluebird": "^3.5.28",
     "@types/jest": "^24.0.21",
     "@types/node": "^12.12.3",
-    
     "benchmarkify": "2.1.2",
     "coveralls": "^3.0.7",
     "eslint": "6.6.0",
