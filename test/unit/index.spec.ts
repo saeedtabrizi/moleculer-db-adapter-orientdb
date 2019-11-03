@@ -3,6 +3,7 @@
 import { ServiceBroker, ServiceSchema } from "moleculer";
 import OrientDBAdapter from "../../src";
 
+// tslint:disable-next-line: no-var-requires
 const DbService = require("moleculer-db");
 
 describe("Test MyService", () => {
