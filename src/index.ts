@@ -1,27 +1,37 @@
 /*
  * moleculer-db-adapter-orientdb
- * Copyright (c) 2019 Saeed Tabrizi (https://github.com/Saeed Tabrizi/moleculer-db-adapter-orientdb)
+ * Copyright (c) 2019 Saeed Tabrizi (https://github.com/SaeedTabrizi/moleculer-db-adapter-orientdb)
  * MIT Licensed
  */
 
 "use strict";
 
+import { EventEmitter } from "events";
 import { Service, ServiceBroker } from "moleculer";
+import {
+  CursorOptions,
+  DbAdapter,
+  DbService,
+  FilterOptions,
+  QueryOptions,
+} from "moleculer-db";
 import * as orientjs from "orientjs";
 import { isNumber } from "util";
 
-export interface QueryOptions {
-    filter?: string | object;
-    sort?: { [key: string]: "asc" | "desc" };
-    paging?: { page?: number; limit?: number };
-    fields?: string[];
-}
-export default class OrientDBAdapter {
+// export interface QueryOptions {
+//     filter?: string | object;
+//     sort?: { [key: string]: "asc" | "desc" };
+//     paging?: { page?: number; limit?: number };
+//     fields?: string[];
+// }
+export default class OrientDBAdapter<E> implements DbAdapter {
   public opts: any[];
   public broker: ServiceBroker;
-  public service: Service;
-  public database: orientjs.ODatabase;
+  public service: DbService<E>;
+  public database: orientjs.ODatabaseSession;
   public dataClass: orientjs.OClass;
+
+  private sequences: { [name: string]: orientjs.OSequence } = {};
   public client: orientjs.OrientDBClient;
 
   public idField: string = "id";
@@ -45,7 +55,7 @@ export default class OrientDBAdapter {
    */
   public init(broker: ServiceBroker, service: Service) {
     this.broker = broker;
-    this.service = service;
+    this.service = service as any;
     this.service.schema.settings.idField = "id";
 
     if (!this.service.schema.database) {
@@ -57,6 +67,7 @@ export default class OrientDBAdapter {
       /* istanbul ignore next */
       throw new Error("Missing `dataClass` definition in schema of service!");
     }
+    return this;
   }
 
   /**
@@ -66,31 +77,54 @@ export default class OrientDBAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async connect(): Promise<boolean> {
-    const {  database, dataClass } = this.service.schema;
-    const dataClient = this.opts[0] || {host: "localhost", port: 2424};
-    const serverCred = { username: dataClient.username, password: dataClient.password};
-    const dbOptions =  {...serverCred, ...database };
+  public async connect(): Promise<void> {
+    const { database, dataClass } = this.service.schema;
+    const dataClient = this.opts[0] || { host: "localhost", port: 2424 };
+    const serverCred = {
+      username: dataClient.username,
+      password: dataClient.password,
+    };
+    const dbOptions = { ...serverCred, ...database };
     try {
-      this.broker.logger.info(`Connecting to orientdb on host: '${dataClient.host}' , port : '${dataClient.port}' , username: ${dataClient.username}' , password: ${dataClient.password}' `);
+      this.broker.logger.info(
+        `Connecting to orientdb on host: '${dataClient.host}' , port : '${dataClient.port}' , username: ${dataClient.username}' , password: ${dataClient.password}' `,
+      );
       this.client = await orientjs.OrientDBClient.connect(dataClient);
       const exists = await this.client.existsDatabase(dbOptions);
       if (!exists) {
         await this.client.createDatabase(dbOptions);
       }
       const sessions = await this.client.sessions(database);
-      const dbPool = await sessions.acquire();
+      this.database = await sessions.acquire();
       // dbPool.once("close", () => {
       //   this.service.logger.warn("Disconnected from db");
       // });
-      await dbPool.class.create(dataClass.name, dataClass.parentName,
-                                dataClass.cluster, dataClass.isAbstract,
-                                dataClass.ifnotexist);
-      this.service.logger.warn(`Connected to "${dbPool.name}" db`);
-      return true;
+      await this.database.class.create(
+        dataClass.name,
+        dataClass.parentName,
+        dataClass.cluster,
+        dataClass.isAbstract,
+        dataClass.ifnotexist,
+      );
+      if (dataClass.sequences) {
+        const ss = Object.entries(dataClass.sequences);
+        for (const item of ss) {
+          const k = item[0];
+          const c: any = item[1];
+          let s  ; //
+          try {
+            s = await this.database.sequence.get(c.name);
+          } catch (error) {
+            s = await this.database.sequence.create(c.name, "ORDERED", 1);
+          }
+          this.sequences[k] = s;
+        }
+      }
+      this.service.logger.warn(`Connected to "${this.database.name}" db`);
+      return;
     } catch (error) {
       this.service.logger.error("Error while connecting to db", error);
-      return false;
+      return;
     }
   }
 
@@ -124,8 +158,8 @@ export default class OrientDBAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async find<R>(filters: any) {
-    return this.createCursor<R[]>(filters, false);
+  public async find<R, C = CursorOptions<R>>(filters?: C) {
+    return this.createCursor<R, C>(filters, false).all<R>();
   }
 
   /**
@@ -135,8 +169,8 @@ export default class OrientDBAdapter {
    * @returns {Promise}
    * @memberof OrientDBAdapter
    */
-  public async findOne<R>(query: any) {
-    return this.createCursor<R>(query, false);
+  public async findOne<R, Q = any>(query: Q) {
+    return this.createCursor<R>({ query }, false).one<R>();
   }
 
   /**
@@ -148,17 +182,13 @@ export default class OrientDBAdapter {
    * @memberof OrientDBAdapter
    */
   public async findById<R>(id: string): Promise<R> {
+    const svc = this.service;
+    const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
-      const r = await db.query<R>(
-        `SELECT * FROM ${this.dataClass.name} WHERE ${this.idField} = :id`,
-        { params: { id } },
-      );
-      return r;
+      return this.createCursor<R>({ [svc.schema.settings.idField]: id }, false).one<R>();
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' findByIds`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' findByIds`,
         error,
       );
     }
@@ -173,17 +203,19 @@ export default class OrientDBAdapter {
    * @memberof OrientDBAdapter
    */
   public async findByIds<R>(idList: Array<number | string>) {
+    const svc = this.service;
+    const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
+      // const s = await this.client.sessions();
+      // const db = await s.acquire();
       const r = await db.query<R>(
-        `SELECT * FROM ${this.dataClass.name} WHERE ${this.idField} IN :ids`,
+        `SELECT * FROM ${this.dataClass.name} WHERE ${svc.schema.idField} IN :ids`,
         { params: { ids: idList } },
       );
-      return r;
+      return r.all();
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' findByIds`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' findByIds`,
         error,
       );
     }
@@ -203,7 +235,9 @@ export default class OrientDBAdapter {
    * @memberof OrientDBAdapter
    */
   public async count(filters?: any): Promise<number> {
-    return this.createCursor(filters, true);
+    const q = this.createCursor(filters, true);
+    const c = await q.one<{ count: number }>();
+    return c.count ? c.count : 0;
   }
 
   /**
@@ -214,19 +248,21 @@ export default class OrientDBAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async insert<TEntity>(entity: TEntity): Promise<TEntity> {
+  public async insert<T, R = T>(entity: T): Promise<R> {
+    const svc = this.service;
+    const db: orientjs.ODatabase = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
+      // const s = await this.client.sessions();
+      // const db = await s.acquire();
       const r = await db
         .insert()
-        .into(this.dataClass.name)
+        .into(svc.schema.dataClass.name)
         .set(entity)
-        .one<TEntity>();
+        .one<R>();
       return r;
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' insert record`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' insert record`,
         error,
       );
     }
@@ -240,24 +276,26 @@ export default class OrientDBAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async insertMany<TEntity>(...entities: TEntity[]): Promise<TEntity[]> {
+  public async insertMany<T, R = T>(...entities: T[]): Promise<R[]> {
+    const svc = this.service;
+    const db: orientjs.ODatabase = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
-      const A: TEntity[] = [];
+      // const s = await this.client.sessions();
+      // const db = await s.acquire();
+      const A: R[] = [];
       for (const entity of entities) {
         const r = await db
           .insert()
-          .into(this.dataClass.name)
+          .into(svc.schema.dataClass.name)
           .set(entity)
-          .one<TEntity>();
+          .one<R>();
         A.push(r);
       }
 
       return A;
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' insert records`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' insert records`,
         error,
       );
     }
@@ -272,34 +310,27 @@ export default class OrientDBAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async updateMany<TQuery, TEntity>(
-    query: TQuery,
-    update: TEntity,
-  ): Promise<TEntity[]> {
+  public async updateMany<T, Q extends QueryOptions<T> = any>(
+    query: Q,
+    update: T,
+  ): Promise<number> {
+    const svc = this.service;
+    const db: orientjs.ODatabase = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
+      // const s = await this.client.sessions();
+      // const db = await s.acquire();
       const r = await db
-        .update(this.dataClass.name)
+        .update(svc.schema.dataClass.name)
         .set(update)
         .where(query)
-        .all<TEntity>();
+        .one<number>();
       return r;
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' update records`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' update records`,
         error,
       );
     }
-    // return new Promise<number>((resolve, reject) => {
-    // 	if ("$set" in update) {
-    // 		update = update.$set;
-    // 	}
-    // 	r.table(this.table).filter(query).update(update).run(this.client, (err, res) => {
-    // 		if (err) { reject(err); }
-    // 		resolve(res);
-    // 	});
-    // }.bind(this));
   }
 
   /**
@@ -311,22 +342,23 @@ export default class OrientDBAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async updateById<TEntity>(
-    id: string,
-    update: TEntity,
-  ): Promise<TEntity> {
+  public async updateById<T, R = T>(id: string| number, update: T): Promise<R> {
+    const svc = this.service;
+    const db: orientjs.ODatabase = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
+      // const s = await this.client.sessions();
+      // const db = await s.acquire();
+      const m = (update as any).$set;
       const r = await db
-        .update(this.dataClass.name)
-        .set(update)
-        .where({ [this.idField]: id })
-        .one<TEntity>();
+        .update(svc.schema.dataClass.name)
+        .set(m)
+        .where({ [svc.schema.settings.idField]: id })
+        .return("AFTER")
+        .one<R>();
       return r;
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' update record`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' update record`,
         error,
       );
     }
@@ -340,19 +372,21 @@ export default class OrientDBAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async removeMany<TQuery, R>(query: TQuery): Promise<R[]> {
+  public async removeMany<TQuery>(query: TQuery): Promise<number> {
+    const svc = this.service;
+    const db: orientjs.ODatabase = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
+      // const s = await this.client.sessions();
+      // const db = await s.acquire();
       const r = await db
         .delete()
-        .from(this.dataClass.name)
+        .from(svc.schema.dataClass.name)
         .where(query)
-        .all<R>();
+        .one<number>();
       return r;
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' remove records`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' remove records`,
         error,
       );
     }
@@ -361,35 +395,30 @@ export default class OrientDBAdapter {
   /**
    * Remove an entity by ID
    *
-   * @param {String} id - ObjectID as hexadecimal string.
+   * @param {String} id - ObjectID as string.
    * @returns {Promise<Object>} Return with the removed document.
    *
    * @memberof OrientDBAdapter
    */
-  public async removeById<R>(id: string): Promise<R> {
+  public async removeById<R>(id: string| number): Promise<R> {
+    const svc = this.service;
+    const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
-      const r = await db.query<R>(
-        `DELETE * FROM ${this.dataClass.name} WHERE ${this.idField} = :id`,
-        { params: { id } },
-      );
-      return r;
+      // const s = await this.client.sessions();
+      // const db = await s.acquire();
+      const r = await db
+        .command<R>(
+          `DELETE  FROM ${svc.schema.dataClass.name} WHERE ${svc.settings.idField} = :id LIMIT 1 UNSAFE`,
+          { params: { id } },
+        )
+        .one();
+      return { id } as any;
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' remove record`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' remove record`,
         error,
       );
     }
-    // return new Promise((resolve, reject) => {
-    // 	r.table(this.table).get(id).delete().run(this.client, (err, res) => {
-    // 		if (err) { reject(err); }
-    // 		const resp = {};
-    // 		const idField = this.service.schema.settings.idField;
-    // 		resp[idField] = id;
-    // 		resolve(resp);
-    // 	}.bind(this));
-    // }.bind(this));
   }
 
   /**
@@ -400,13 +429,13 @@ export default class OrientDBAdapter {
    * @memberof OrientDBAdapter
    */
   public async clear(): Promise<void> {
+    const svc = this.service;
+    const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
-      await db.query(`DELETE * FROM ${this.dataClass.name}`);
+     await  db.command(`TRUNCATE CLASS ${svc.schema.dataClass.name} UNSAFE`).one();
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' clear records`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' clear records`,
         error,
       );
     }
@@ -419,8 +448,8 @@ export default class OrientDBAdapter {
    * @returns {Object}
    * @memberof OrientDBAdapter
    */
-  public entityToObject<TEntity, R>(entity: TEntity): R {
-    return Object.assign<R, TEntity>({} as any, entity);
+  public entityToObject<T, R>(entity: T): R {
+    return Object.assign<R, T>({} as any, entity);
   }
 
   /**
@@ -431,53 +460,74 @@ export default class OrientDBAdapter {
    *    - sort
    *    - limit
    *    - offset
-   *  - query
+   *    - query
    *
    * @param {QueryOptions} params
    * @param {Boolean} isCounting
-   * @returns {Promise<R>}
+   * @returns {OQuery<T>}
    */
-  public async createCursor<R>(
-    params?: QueryOptions,
-    isCounting = false,
-  ): Promise<R> {
+  public createCursor<
+    T = any,
+    C extends CursorOptions<T> = any,
+    Q = orientjs.OQuery<T>
+  >(params?: C, isCounting = false): Q {
+    const svc = this.service;
+    const db = svc && svc.adapter.database;
     try {
-      const s = await this.client.sessions();
-      const db = await s.acquire();
-
+      if (!db) {
+        throw new Error("Database not initialized");
+      }
+      const mfields: string | string[] =
+        (params && params.fields) ||
+        (svc.schema.settings && svc.schema.settings.fields);
+      const fields = typeof mfields === "string" ? mfields.split(",") : mfields;
       if (params) {
-        let q = db.select( isCounting ? "count(*) AS count" : (params.fields ? params.fields : "*") )
-                  .from(this.dataClass.name);
+        let q = db
+          .select(
+            isCounting ? "count(*) AS count" : fields ? fields.join(",") : "*",
+          )
+          .from(svc.schema.dataClass.name);
         // Filter
-        if (params.filter) {
-          q = q.where(params.filter);
+        if (params.search) {
+          let sfields = [];
+          if (params.searchFields) {
+            sfields =
+              typeof params.searchFields === "string"
+                ? params.searchFields.split(",")
+                : params.searchFields;
+            const f = Object.fromEntries(
+              sfields.map((xx) => [xx, params.search]),
+            );
+            q = q.where(f);
+          }
+        } else {
+          if (params.query) {
+            q = q.where(params.query);
+          }
         }
         // Sort
         if (params.sort) {
           q = q.order(params.sort);
         }
         // Paging
-        if (params.paging) {
-          if (isNumber(params.paging.page) && params.paging.page > 0) {
-            q = q.skip(params.paging.page);
+        if (params.limit || params.offset) {
+          if (isNumber(params.offset) && params.offset > 0) {
+            q = q.skip(params.offset);
           }
-          if (isNumber(params.paging.limit) && params.paging.limit > 0) {
-            q = q.limit(params.paging.limit);
+          if (isNumber(params.limit) && params.limit > 0) {
+            q = q.limit(params.limit);
           }
         }
-         // If not params
-        if (isCounting) {
-          const c = await q.one<any>();
-          return c ? c.count : 0;
-        } else {
-          const r = await q.all<R>() as any;
-          return r;
-        }
+        return q as any;
       }
-      return ([] as any);
+      return db
+        .select(
+          isCounting ? "count(*) AS count" : fields ? fields.join(",") : "*",
+        )
+        .from(svc.schema.dataClass.name) as any;
     } catch (error) {
-      this.service.logger.error(
-        `Error occured in '${this.dataClass.name}' createCursor`,
+      svc.logger.error(
+        `Error occured in '${svc.schema.dataClass.name}' createCursor`,
         error,
       );
     }
@@ -490,8 +540,8 @@ export default class OrientDBAdapter {
    * @memberof OrientDBAdapter
    * @returns {Object} Modified entity
    */
-  public beforeSaveTransformID<TEntity>(entity: TEntity, idField: string) {
-    return entity;
+  public beforeSaveTransformID<T, R = T>(entity: T, idField: string): R {
+    return entity as any;
   }
 
   /**
@@ -501,10 +551,14 @@ export default class OrientDBAdapter {
    * @memberof OrientDBAdapter
    * @returns {Object} Modified entity
    */
-  public afterRetrieveTransformID<TEntity>(
-    entity: TEntity,
-    idField: string,
-  ): any {
+  public afterRetrieveTransformID<T>(entity: T, idField: string): any {
+    // if (idField !== "_id") {
+    // 	entity[idField] = entity["_id"];
+    // 	delete entity._id;
+    // }
+    delete entity["@class"];
+    delete entity["@version"];
+    delete entity["@rid"];
     return entity;
   }
 
@@ -525,4 +579,32 @@ export default class OrientDBAdapter {
   public getDataClass(): orientjs.OClass {
     return this.dataClass;
   }
+
+  /**
+   * execute orientdb command.
+   * @param command command
+   * @param options options
+   */
+  public runCommand<R>(command: string, options?: any): orientjs.OResult<R> {
+    return this.database.command<R>(command, options);
+  }
+
+  /**
+   * execute orientdb query
+   * @param query query
+   * @param options options
+   */
+  public runQuery<R>(query: string, options?: any): orientjs.OResult<R> {
+    return this.database.query<R>(query, options);
+  }
+
+  /**
+   * execute orientdb live query for reactive query
+   * @param query query
+   * @param options options
+   */
+  public runLive(query: string, options?: any): orientjs.LiveQuery {
+    return this.database.liveQuery(query, options);
+  }
+
 }
