@@ -6,6 +6,7 @@
 
 "use strict";
 
+import { EventEmitter } from "events";
 import { Service, ServiceBroker } from "moleculer";
 import {
   CursorOptions,
@@ -157,7 +158,7 @@ export default class OrientDBAdapter<E> implements DbAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async find<R, C = CursorOptions<R>>(filters: C) {
+  public async find<R, C = CursorOptions<R>>(filters?: C) {
     return this.createCursor<R, C>(filters, false).all<R>();
   }
 
@@ -184,13 +185,7 @@ export default class OrientDBAdapter<E> implements DbAdapter {
     const svc = this.service;
     const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-      // const s = await this.client.sessions();
-      // const db = await s.acquire();
-      const r = await db.query<R>(
-        `SELECT * FROM ${svc.schema.dataClass.name} WHERE ${svc.schema.idField} = :id`,
-        { params: { id } },
-      );
-      return r.one();
+      return this.createCursor<R>({ [svc.schema.settings.idField]: id }, false).one<R>();
     } catch (error) {
       svc.logger.error(
         `Error occured in '${svc.schema.dataClass.name}' findByIds`,
@@ -347,7 +342,7 @@ export default class OrientDBAdapter<E> implements DbAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async updateById<T, R = T>(id: string, update: T): Promise<R> {
+  public async updateById<T, R = T>(id: string| number, update: T): Promise<R> {
     const svc = this.service;
     const db: orientjs.ODatabase = svc && svc.adapter.database;
     try {
@@ -405,7 +400,7 @@ export default class OrientDBAdapter<E> implements DbAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async removeById<R>(id: string): Promise<R> {
+  public async removeById<R>(id: string| number): Promise<R> {
     const svc = this.service;
     const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
@@ -437,7 +432,7 @@ export default class OrientDBAdapter<E> implements DbAdapter {
     const svc = this.service;
     const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-      await db.command(`TRUNCATE CLASS ${svc.schema.dataClass.name} UNSAFE`);
+     await  db.command(`TRUNCATE CLASS ${svc.schema.dataClass.name} UNSAFE`).one();
     } catch (error) {
       svc.logger.error(
         `Error occured in '${svc.schema.dataClass.name}' clear records`,
@@ -480,7 +475,7 @@ export default class OrientDBAdapter<E> implements DbAdapter {
     const db = svc && svc.adapter.database;
     try {
       if (!db) {
-        throw new Error("Database not connected");
+        throw new Error("Database not initialized");
       }
       const mfields: string | string[] =
         (params && params.fields) ||
@@ -584,4 +579,32 @@ export default class OrientDBAdapter<E> implements DbAdapter {
   public getDataClass(): orientjs.OClass {
     return this.dataClass;
   }
+
+  /**
+   * execute orientdb command.
+   * @param command command
+   * @param options options
+   */
+  public runCommand<R>(command: string, options?: any): orientjs.OResult<R> {
+    return this.database.command<R>(command, options);
+  }
+
+  /**
+   * execute orientdb query
+   * @param query query
+   * @param options options
+   */
+  public runQuery<R>(query: string, options?: any): orientjs.OResult<R> {
+    return this.database.query<R>(query, options);
+  }
+
+  /**
+   * execute orientdb live query for reactive query
+   * @param query query
+   * @param options options
+   */
+  public runLive(query: string, options?: any): orientjs.LiveQuery {
+    return this.database.liveQuery(query, options);
+  }
+
 }

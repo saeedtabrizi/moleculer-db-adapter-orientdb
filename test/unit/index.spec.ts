@@ -43,14 +43,22 @@ describe("Test MyService", () => {
   const p1 =  {id: 1, firstname: "saeed", age: 18 , gender: "M"};
   const p2 =  {id: 2, firstname: "sara", age: 15 , gender: "F"};
   const p3 =  {id: 3, firstname: "majid", age: 25 , gender: "M"};
-  beforeAll(() => broker.start());
-  afterAll(() => broker.stop());
+  beforeAll(async () => await broker.start());
+  afterAll(async () => {
+    service.schema.database = databaseOpts;
+    service.schema.dataClass = classOpts;
+    adapter.init(broker, service);
+    await adapter.clear();
+    await broker.stop() ;
+    return;
+  });
 
   beforeEach(async () => {
     service.schema.database = databaseOpts;
     service.schema.dataClass = classOpts;
     adapter.init(broker, service);
     await adapter.clear();
+    return ;
   });
 
   describe("DbService Adapter Methods", () => {
@@ -106,6 +114,72 @@ describe("Test MyService", () => {
       await adapter.insert(p1);
       const c = await adapter.count();
       expect(c).toEqual(1);
+    });
+    it("should call 'count' and return 1", async () => {
+
+      await adapter.insert(p1);
+      const c =  await adapter.count();
+      expect(c).toEqual(1);
+    });
+
+    it("should call 'count' and return 2", async () => {
+
+      await adapter.insert(p1);
+      await adapter.insert(p2);
+      await adapter.insert(p3);
+      const c =  await adapter.count({search: "M", searchFields: "gender"});
+      expect(c).toEqual(2);
+    });
+
+    it("should call 'find' and return single object", async () => {
+
+      await adapter.insert(p1);
+      const c = await  adapter.find();
+      expect(c).toHaveLength(1);
+    });
+
+    it("should call 'find' and return 3 object", async () => {
+
+      await adapter.insert(p1);
+      await adapter.insert(p2);
+      await adapter.insert(p3);
+      const c = await  adapter.find();
+      expect(c).toHaveLength(3);
+    });
+
+    it("should call 'find' and return 2 object", async () => {
+
+      await adapter.insert(p1);
+      await adapter.insert(p2);
+      await adapter.insert(p3);
+      const c = await  adapter.find({search: "saeed", searchFields: "firstname"});
+      expect(c).toHaveLength(1);
+    });
+
+    it("should call 'create' and return single object", async () => {
+
+      const c = await  adapter.insert(p1);
+      expect(c).toBeDefined();
+      expect(c.firstname).toBe(p1.firstname);
+    });
+
+    it("should call 'update' and return single object", async () => {
+      const c1 = await  adapter.insert(p1);
+      const c2 = await  adapter.updateById<any>(p1.id, {$set: {...p1, firstname: "samad"}});
+      expect(c1).toBeDefined();
+      expect(c2).toBeDefined();
+      expect(c1.firstname).not.toEqual(c2.firstname);
+      expect(c2.firstname).toEqual("samad");
+    });
+    it("should call 'remove' and return single object", async () => {
+
+      const c1 = await  adapter.insert( p1);
+      const c2 = await  adapter.insert( p2);
+      const r1 = await  adapter.removeById( 1);
+      const r2 = await  adapter.count();
+      expect(c1).toBeDefined();
+      expect(r1).toBeDefined();
+      expect(r2).toEqual(1);
     });
   });
   describe("DbService Actions", () => {

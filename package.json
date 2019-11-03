@@ -22,7 +22,7 @@
     "dev": "nodemon examples/index.ts",
     "ci": "jest --watch",
     "coverage": "jest --coverage",
-    "test": "jest",
+    "test": "jest --runInBand",
     "lint": "tslint -t codeFrame 'src/**/*.ts' 'test/**/*.ts'",
     "lint:fix": "tslint --fix 'src/**/*.ts' 'test/**/*.ts' -t verbose",
     "deps": "npm-check -u",
