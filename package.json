@@ -57,7 +57,7 @@
     "@types/bluebird": "^3.5.28",
     "@types/jest": "^24.0.21",
     "@types/node": "^12.12.3",
-    "@types/orientjs": "^3.0.8",
+    
     "benchmarkify": "2.1.2",
     "coveralls": "^3.0.7",
     "eslint": "6.6.0",
@@ -76,6 +76,7 @@
   },
   "dependencies": {
     "moleculer-db": "^0.8.2",
-    "orientjs": "^3.0.7"
+    "orientjs": "^3.0.7",
+    "@types/orientjs": "^3.0.8"
   }
 }
