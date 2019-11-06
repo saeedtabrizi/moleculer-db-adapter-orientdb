@@ -1,8 +1,9 @@
 {
   "name": "moleculer-db-adapter-orientdb",
-  "version": "0.2.1",
+  "version": "0.4.0",
   "description": "Moleculer orientdb database adapter",
   "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
   "typings": "./lib/index.d.ts",
   "typescript": {
     "definition": "./lib/index.d.ts"
@@ -54,9 +55,8 @@
   },
   "devDependencies": {
     "@types/bluebird": "^3.5.28",
-    "@types/jest": "^24.0.21",
-    "@types/node": "^12.12.3",
-    "@types/orientjs": "^3.0.8",
+    "@types/jest": "^24.0.22",
+    "@types/node": "^12.12.6",
     "benchmarkify": "2.1.2",
     "coveralls": "^3.0.7",
     "eslint": "6.6.0",
@@ -67,14 +67,15 @@
     "npm-check": "^5.9.0",
     "ts-jest": "^24.1.0",
     "ts-node": "^8.4.1",
-    "tslint": "^5.20.0",
-    "typescript": "^3.6.4"
+    "tslint": "^5.20.1",
+    "typescript": "^3.7.2"
   },
   "engines": {
     "node": ">= 12.10.x"
   },
   "dependencies": {
+    "@types/orientjs": "^3.0.9",
     "moleculer-db": "^0.8.2",
-    "orientjs": "^3.0.7"
+    "orientjs": "^3.0.8"
   }
 }
