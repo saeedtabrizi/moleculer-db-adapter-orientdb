@@ -8,6 +8,7 @@
 
 import { EventEmitter } from "events";
 import { Service, ServiceBroker } from "moleculer";
+import Moleculer = require("moleculer");
 import {
   CursorOptions,
   DbAdapter,
@@ -18,6 +19,24 @@ import {
 import * as orientjs from "orientjs";
 import { isNumber } from "util";
 
+export interface OrientDbServiceSchema<E>
+  extends Moleculer.ServiceSchema {
+  adapter: OrientDBAdapter<E>;
+  database: orientjs.DatabaseOptions;
+  dataClass: {
+    name: string;
+    parentName?: string;
+    isAbstract?: boolean;
+    ifnotexist?: boolean;
+    sequences?: {
+      id: {
+        name: string;
+      };
+    };
+    indexes?: orientjs.IndexConfig[];
+    properties?: { [name: string]: orientjs.PropertyCreateConfig };
+  };
+}
 // export interface QueryOptions {
 //     filter?: string | object;
 //     sort?: { [key: string]: "asc" | "desc" };
@@ -99,7 +118,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
       // dbPool.once("close", () => {
       //   this.service.logger.warn("Disconnected from db");
       // });
-      let cls ;
+      let cls;
       try {
         cls = await this.database.class.create(
           dataClass.name,
@@ -108,9 +127,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
           dataClass.isAbstract,
           dataClass.ifnotexist,
         );
-        this.service.logger.info(
-          `The Class '${cls.name}' has been created`,
-        );
+        this.service.logger.info(`The Class '${cls.name}' has been created`);
       } catch (error) {
         this.service.logger.error(
           `The Class '${dataClass.name}' not be created`,
@@ -120,7 +137,10 @@ export class OrientDBAdapter<E> implements DbAdapter {
         // tslint:disable-next-line:forin
         for (const key in dataClass.properties) {
           try {
-            await cls.property.create({ name: key , ...dataClass.properties[key]});
+            await cls.property.create({
+              name: key,
+              ...dataClass.properties[key],
+            });
             this.service.logger.info(
               `The Property '${cls.name}.${key}' has been created`,
             );
@@ -306,8 +326,8 @@ export class OrientDBAdapter<E> implements DbAdapter {
       if (seqs) {
         for (const key in seqs) {
           if (seqs.hasOwnProperty(key)) {
-            const name =  seqs[key].name;
-            entity[key]  =   db.rawExpression(`sequence('${name}').next()`);
+            const name = seqs[key].name;
+            entity[key] = db.rawExpression(`sequence('${name}').next()`);
           }
         }
       }
@@ -343,8 +363,8 @@ export class OrientDBAdapter<E> implements DbAdapter {
       for (const entity of entities) {
         for (const key in this.sequences) {
           if (this.sequences.hasOwnProperty(key)) {
-            const name =  this.sequences[key].name;
-            entity[key]  =   db.rawExpression(`sequence('${name}').next()`);
+            const name = this.sequences[key].name;
+            entity[key] = db.rawExpression(`sequence('${name}').next()`);
           }
         }
         const r = await db

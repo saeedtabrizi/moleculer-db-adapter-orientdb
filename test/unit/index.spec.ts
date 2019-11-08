@@ -1,7 +1,8 @@
 "use strict";
 
 import { ServiceBroker, ServiceSchema } from "moleculer";
-import { OrientDBAdapter } from "../../src";
+import orientjs = require("orientjs");
+import { OrientDBAdapter, OrientDbServiceSchema } from "../../src";
 
 // tslint:disable-next-line: no-var-requires
 const DbService = require("moleculer-db");
@@ -13,7 +14,7 @@ describe("Test MyService", () => {
     username: "root",
     password: "root",
   };
-  const databaseOpts = { name: "TestDB", type: "graph", storage: "memory" };
+  const databaseOpts: orientjs.DatabaseOptions = { name: "TestDB", type: "graph", storage: "memory" };
   const classOpts = {
     name: "Person",
     parentName: "V",
@@ -67,12 +68,12 @@ describe("Test MyService", () => {
   };
   const broker = new ServiceBroker();
   const adapter = new OrientDBAdapter<typeof p1>(serverOpts);
-  const serviceSchema: ServiceSchema = {
+  const serviceSchema: OrientDbServiceSchema<any> = {
     name: "db-adapter-orientdb",
     mixins: [DbService],
     adapter,
     database: databaseOpts,
-    dataClass: classOpts,
+    dataClass: classOpts as any,
     actions: {
       test: async (ctx) => {
         ctx.broker.logger.info(
