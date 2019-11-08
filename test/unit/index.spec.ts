@@ -1,7 +1,7 @@
 "use strict";
 
 import { ServiceBroker, ServiceSchema } from "moleculer";
-import {OrientDBAdapter} from "../../src";
+import { OrientDBAdapter } from "../../src";
 
 // tslint:disable-next-line: no-var-requires
 const DbService = require("moleculer-db");
@@ -20,7 +20,34 @@ describe("Test MyService", () => {
     isAbstract: false,
     ifnotexist: true,
     sequences: {
-      id: {name: "seq_Person_id"},
+      id: { name: "seq_Person_id" },
+    },
+    indexes: [{name: "idx_unique_Person_id",
+               type: "UNIQUE" ,
+               ifnotexist: true,
+                properties: ["id"] }],
+    properties: {
+      id: {
+        type: "string",
+        default: "uuid()",
+        readonly: true,
+        alias: "_id",
+      },
+      firstname: { type: "String" , min: 1, max: 50, required: true },
+      lastname: { type: "String" , min: 1, max: 50  },
+      title: { type: "String" , min: 2, max: 15  },
+      gender: { type: "String", min: 1, max: 1, required: true, regx: "M|F|U" },
+      age: {type: "Byte", min: 0 , max: 200, default: 0 },
+      credit: {type: "Long", min: 0 , default: 0 },
+      rowid: {
+        type: "String",
+        default: "uuid()",
+        readonly: true,
+        alias: "_id",
+      },
+      createdAt: {
+        type: "DateTime",
+      },
     },
   };
   const broker = new ServiceBroker();
@@ -41,16 +68,16 @@ describe("Test MyService", () => {
     },
   };
   const service = broker.createService(serviceSchema);
-  const p1 =  {id: 1, firstname: "saeed", age: 18 , gender: "M"};
-  const p2 =  {id: 2, firstname: "sara", age: 15 , gender: "F"};
-  const p3 =  {id: 3, firstname: "majid", age: 25 , gender: "M"};
+  const p1: any = {  firstname: "saeed", age: 18, gender: "M"   };
+  const p2: any = {  firstname: "sara", age: 15, gender: "F" };
+  const p3: any = {  firstname: "majid", age: 25, gender: "M" };
   beforeAll(async () => await broker.start());
   afterAll(async () => {
     service.schema.database = databaseOpts;
     service.schema.dataClass = classOpts;
     adapter.init(broker, service);
     await adapter.clear();
-    await broker.stop() ;
+    await broker.stop();
     return;
   });
 
@@ -59,7 +86,7 @@ describe("Test MyService", () => {
     service.schema.dataClass = classOpts;
     adapter.init(broker, service);
     await adapter.clear();
-    return ;
+    return;
   });
 
   describe("DbService Adapter Methods", () => {
@@ -111,73 +138,70 @@ describe("Test MyService", () => {
     });
 
     it("should call 'count' in adapter and return 1 ", async () => {
-
       await adapter.insert(p1);
       const c = await adapter.count();
       expect(c).toEqual(1);
     });
     it("should call 'count' and return 1", async () => {
-
       await adapter.insert(p1);
-      const c =  await adapter.count();
+      const c = await adapter.count();
       expect(c).toEqual(1);
     });
 
     it("should call 'count' and return 2", async () => {
-
       await adapter.insert(p1);
       await adapter.insert(p2);
       await adapter.insert(p3);
-      const c =  await adapter.count({search: "M", searchFields: "gender"});
+      const c = await adapter.count({ search: "M", searchFields: "gender" });
       expect(c).toEqual(2);
     });
 
     it("should call 'find' and return single object", async () => {
-
       await adapter.insert(p1);
-      const c = await  adapter.find();
+      const c = await adapter.find();
       expect(c).toHaveLength(1);
     });
 
     it("should call 'find' and return 3 object", async () => {
-
       await adapter.insert(p1);
       await adapter.insert(p2);
       await adapter.insert(p3);
-      const c = await  adapter.find();
+      const c = await adapter.find();
       expect(c).toHaveLength(3);
     });
 
     it("should call 'find' and return 2 object", async () => {
-
       await adapter.insert(p1);
       await adapter.insert(p2);
       await adapter.insert(p3);
-      const c = await  adapter.find({search: "saeed", searchFields: "firstname"});
+      const c = await adapter.find({
+        search: "saeed",
+        searchFields: "firstname",
+      });
       expect(c).toHaveLength(1);
     });
 
     it("should call 'create' and return single object", async () => {
-
-      const c = await  adapter.insert(p1);
+      const c = await adapter.insert(p1);
       expect(c).toBeDefined();
       expect(c.firstname).toBe(p1.firstname);
     });
 
     it("should call 'update' and return single object", async () => {
-      const c1 = await  adapter.insert(p1);
-      const c2 = await  adapter.updateById<any>(p1.id, {$set: {...p1, firstname: "samad"}});
+      const c1 = await adapter.insert(p1);
+      const c2 = await adapter.updateById<any>(c1.id, {
+        $set: { ...p1, firstname: "samad" },
+      });
       expect(c1).toBeDefined();
       expect(c2).toBeDefined();
       expect(c1.firstname).not.toEqual(c2.firstname);
       expect(c2.firstname).toEqual("samad");
     });
     it("should call 'remove' and return single object", async () => {
-
-      const c1 = await  adapter.insert( p1);
-      const c2 = await  adapter.insert( p2);
-      const r1 = await  adapter.removeById( 1);
-      const r2 = await  adapter.count();
+      const c1 = await adapter.insert(p1);
+      const c2 = await adapter.insert(p2);
+      const r1 = await adapter.removeById(c1.id);
+      const r2 = await adapter.count();
       expect(c1).toBeDefined();
       expect(r1).toBeDefined();
       expect(r2).toEqual(1);
@@ -198,30 +222,29 @@ describe("Test MyService", () => {
         });
     });
     it("should call 'count' and return 1", async () => {
-
       await adapter.insert(p1);
       const c = await broker.call("db-adapter-orientdb.count");
       expect(c).toEqual(1);
     });
 
     it("should call 'count' and return 2", async () => {
-
       await adapter.insert(p1);
       await adapter.insert(p2);
       await adapter.insert(p3);
-      const c = await broker.call("db-adapter-orientdb.count", {search: "M", searchFields: "gender"});
+      const c = await broker.call("db-adapter-orientdb.count", {
+        search: "M",
+        searchFields: "gender",
+      });
       expect(c).toEqual(2);
     });
 
     it("should call 'find' and return single object", async () => {
-
       await adapter.insert(p1);
       const c = await broker.call("db-adapter-orientdb.find");
       expect(c).toHaveLength(1);
     });
 
     it("should call 'find' and return 3 object", async () => {
-
       await adapter.insert(p1);
       await adapter.insert(p2);
       await adapter.insert(p3);
@@ -230,16 +253,17 @@ describe("Test MyService", () => {
     });
 
     it("should call 'find' and return 2 object", async () => {
-
       await adapter.insert(p1);
       await adapter.insert(p2);
       await adapter.insert(p3);
-      const c = await broker.call("db-adapter-orientdb.find", {search: "saeed", searchFields: "firstname"});
+      const c = await broker.call("db-adapter-orientdb.find", {
+        search: "saeed",
+        searchFields: "firstname",
+      });
       expect(c).toHaveLength(1);
     });
 
     it("should call 'create' and return single object", async () => {
-
       const c = await broker.call("db-adapter-orientdb.create", p1);
       expect(c).toBeDefined();
       expect(c.firstname).toBe(p1.firstname);
@@ -247,17 +271,20 @@ describe("Test MyService", () => {
 
     it("should call 'update' and return single object", async () => {
       const c1 = await broker.call("db-adapter-orientdb.create", p1);
-      const c2 = await broker.call("db-adapter-orientdb.update", {...p1, firstname: "samad"});
+      const c2 = await broker.call("db-adapter-orientdb.update", {
+        ...p1,
+        id: c1.id,
+        firstname: "samad",
+      });
       expect(c1).toBeDefined();
       expect(c2).toBeDefined();
       expect(c1.firstname).not.toEqual(c2.firstname);
       expect(c2.firstname).toEqual("samad");
     });
     it("should call 'remove' and return single object", async () => {
-
       const c1 = await broker.call("db-adapter-orientdb.create", p1);
       const c2 = await broker.call("db-adapter-orientdb.create", p2);
-      const r1 = await broker.call("db-adapter-orientdb.remove", {id: 1});
+      const r1 = await broker.call("db-adapter-orientdb.remove", { id: c1.id });
       const r2 = await broker.call("db-adapter-orientdb.count");
       expect(c1).toBeDefined();
       expect(r1).toBeDefined();

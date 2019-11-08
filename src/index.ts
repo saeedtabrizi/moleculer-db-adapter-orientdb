@@ -111,13 +111,24 @@ export class OrientDBAdapter<E> implements DbAdapter {
         for (const item of ss) {
           const k = item[0];
           const c: any = item[1];
-          let s  ; //
+          let s; //
           try {
             s = await this.database.sequence.get(c.name);
           } catch (error) {
-            s = await this.database.sequence.create(c.name, "ORDERED", 1);
+            this.service.logger.info(`The Sequence '${c.name}' not found`);
           }
-          this.sequences[k] = s;
+          if (!s) {
+            s = await this.database.sequence.create(c.name, "ORDERED", 1);
+            this.service.logger.info(
+              `The Sequence '${c.name}' has been created`,
+            );
+          }
+          if (s) {
+            this.sequences[k] = s;
+            this.service.logger.info(
+              `The Sequence '${c.name}' has been attached`,
+            );
+          }
         }
       }
       this.service.logger.warn(`Connected to "${this.database.name}" db`);
@@ -185,7 +196,10 @@ export class OrientDBAdapter<E> implements DbAdapter {
     const svc = this.service;
     const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-      return this.createCursor<R>({ [svc.schema.settings.idField]: id }, false).one<R>();
+      return this.createCursor<R>(
+        { [svc.schema.settings.idField]: id },
+        false,
+      ).one<R>();
     } catch (error) {
       svc.logger.error(
         `Error occured in '${svc.schema.dataClass.name}' findByIds`,
@@ -251,9 +265,16 @@ export class OrientDBAdapter<E> implements DbAdapter {
   public async insert<T, R = T>(entity: T): Promise<R> {
     const svc = this.service;
     const db: orientjs.ODatabase = svc && svc.adapter.database;
+    const seqs = svc.schema.dataClass.sequences;
     try {
-      // const s = await this.client.sessions();
-      // const db = await s.acquire();
+      if (seqs) {
+        for (const key in seqs) {
+          if (seqs.hasOwnProperty(key)) {
+            const name =  seqs[key].name;
+            entity[key]  =   db.rawExpression(`sequence('${name}').next()`);
+          }
+        }
+      }
       const r = await db
         .insert()
         .into(svc.schema.dataClass.name)
@@ -284,6 +305,12 @@ export class OrientDBAdapter<E> implements DbAdapter {
       // const db = await s.acquire();
       const A: R[] = [];
       for (const entity of entities) {
+        for (const key in this.sequences) {
+          if (this.sequences.hasOwnProperty(key)) {
+            const name =  this.sequences[key].name;
+            entity[key]  =   db.rawExpression(`sequence('${name}').next()`);
+          }
+        }
         const r = await db
           .insert()
           .into(svc.schema.dataClass.name)
@@ -342,7 +369,10 @@ export class OrientDBAdapter<E> implements DbAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async updateById<T, R = T>(id: string| number, update: T): Promise<R> {
+  public async updateById<T, R = T>(
+    id: string | number,
+    update: T,
+  ): Promise<R> {
     const svc = this.service;
     const db: orientjs.ODatabase = svc && svc.adapter.database;
     try {
@@ -400,7 +430,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
    *
    * @memberof OrientDBAdapter
    */
-  public async removeById<R>(id: string| number): Promise<R> {
+  public async removeById<R>(id: string | number): Promise<R> {
     const svc = this.service;
     const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
@@ -432,7 +462,9 @@ export class OrientDBAdapter<E> implements DbAdapter {
     const svc = this.service;
     const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
-     await  db.command(`TRUNCATE CLASS ${svc.schema.dataClass.name} UNSAFE`).one();
+      await db
+        .command(`TRUNCATE CLASS ${svc.schema.dataClass.name} UNSAFE`)
+        .one();
     } catch (error) {
       svc.logger.error(
         `Error occured in '${svc.schema.dataClass.name}' clear records`,
@@ -606,5 +638,4 @@ export class OrientDBAdapter<E> implements DbAdapter {
   public runLive(query: string, options?: any): orientjs.LiveQuery {
     return this.database.liveQuery(query, options);
   }
-
 }
