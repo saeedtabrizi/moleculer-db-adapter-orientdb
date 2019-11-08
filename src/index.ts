@@ -99,13 +99,24 @@ export class OrientDBAdapter<E> implements DbAdapter {
       // dbPool.once("close", () => {
       //   this.service.logger.warn("Disconnected from db");
       // });
-      await this.database.class.create(
+      const c =  await this.database.class.create(
         dataClass.name,
         dataClass.parentName,
         dataClass.cluster,
         dataClass.isAbstract,
         dataClass.ifnotexist,
       );
+      if (dataClass.properties) {
+        // tslint:disable-next-line:forin
+        for (const key in dataClass.properties) {
+          await c.property.create({ name: key , ...dataClass.properties[key]});
+        }
+      }
+      if (dataClass.indexes) {
+        for (const item of dataClass.indexes) {
+          await this.database.index.create(item);
+        }
+      }
       if (dataClass.sequences) {
         const ss = Object.entries(dataClass.sequences);
         for (const item of ss) {

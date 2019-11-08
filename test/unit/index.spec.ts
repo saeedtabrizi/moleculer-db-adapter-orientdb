@@ -22,30 +22,45 @@ describe("Test MyService", () => {
     sequences: {
       id: { name: "seq_Person_id" },
     },
-    indexes: [{name: "idx_unique_Person_id",
-               type: "UNIQUE" ,
-               ifnotexist: true,
-                properties: ["id"] }],
+    indexes: [
+      {
+        name: "idx_unique_Person_id",
+        class: "Person",
+        type: "UNIQUE",
+        ifnotexist: true,
+        properties: ["id"],
+      },
+    ],
     properties: {
       id: {
-        type: "string",
-        default: "uuid()",
-        readonly: true,
-        alias: "_id",
-      },
-      firstname: { type: "String" , min: 1, max: 50, required: true },
-      lastname: { type: "String" , min: 1, max: 50  },
-      title: { type: "String" , min: 2, max: 15  },
-      gender: { type: "String", min: 1, max: 1, required: true, regx: "M|F|U" },
-      age: {type: "Byte", min: 0 , max: 200, default: 0 },
-      credit: {type: "Long", min: 0 , default: 0 },
-      rowid: {
         type: "String",
         default: "uuid()",
+       // readonly: true,
+       custom: { alias: "_id"},
+        ifnotexist: true,
+      },
+      firstname: { type: "String", ifnotexist: true, min: 1, max: 50, mandatory: true },
+      lastname: { type: "String", ifnotexist: true, min: 1, max: 50 },
+      title: { type: "String", ifnotexist: true, min: 2, max: 15 },
+      gender: {
+        type: "String",
+        ifnotexist: true,
+        min: 1,
+        max: 1,
+        mandatory: true,
+        regexp: "M|F",
+      },
+      age: { type: "Short", ifnotexist: true, min: 0, max: 200, default: 0 },
+      credit: { type: "Long", ifnotexist: true, min: 0, default: 0 },
+      rowid: {
+        type: "String",
+        ifnotexist: true,
+        default: "uuid()",
         readonly: true,
-        alias: "_id",
+         custom: { alias: "_rowid"},
       },
       createdAt: {
+        ifnotexist: true,
         type: "DateTime",
       },
     },
@@ -68,9 +83,9 @@ describe("Test MyService", () => {
     },
   };
   const service = broker.createService(serviceSchema);
-  const p1: any = {  firstname: "saeed", age: 18, gender: "M"   };
-  const p2: any = {  firstname: "sara", age: 15, gender: "F" };
-  const p3: any = {  firstname: "majid", age: 25, gender: "M" };
+  const p1: any = { firstname: "saeed", age: 18, gender: "M" };
+  const p2: any = { firstname: "sara", age: 15, gender: "F" };
+  const p3: any = { firstname: "majid", age: 25, gender: "M" };
   beforeAll(async () => await broker.start());
   afterAll(async () => {
     service.schema.database = databaseOpts;
