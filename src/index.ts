@@ -99,22 +99,47 @@ export class OrientDBAdapter<E> implements DbAdapter {
       // dbPool.once("close", () => {
       //   this.service.logger.warn("Disconnected from db");
       // });
-      const c =  await this.database.class.create(
-        dataClass.name,
-        dataClass.parentName,
-        dataClass.cluster,
-        dataClass.isAbstract,
-        dataClass.ifnotexist,
-      );
-      if (dataClass.properties) {
+      let cls ;
+      try {
+        cls = await this.database.class.create(
+          dataClass.name,
+          dataClass.parentName,
+          dataClass.cluster,
+          dataClass.isAbstract,
+          dataClass.ifnotexist,
+        );
+        this.service.logger.info(
+          `The Class '${cls.name}' has been created`,
+        );
+      } catch (error) {
+        this.service.logger.error(
+          `The Class '${dataClass.name}' not be created`,
+        );
+      }
+      if (dataClass.properties && cls) {
         // tslint:disable-next-line:forin
         for (const key in dataClass.properties) {
-          await c.property.create({ name: key , ...dataClass.properties[key]});
+          try {
+            await cls.property.create({ name: key , ...dataClass.properties[key]});
+            this.service.logger.info(
+              `The Property '${cls.name}.${key}' has been created`,
+            );
+          } catch (error) {
+            this.service.logger.error(
+              `The Property '${cls.name}.${key}' not be created`,
+            );
+          }
         }
       }
       if (dataClass.indexes) {
         for (const item of dataClass.indexes) {
-          await this.database.index.create(item);
+          try {
+            await this.database.index.create(item);
+          } catch (error) {
+            this.service.logger.error(
+              `The Index '${item.name}' not be created`,
+            );
+          }
         }
       }
       if (dataClass.sequences) {
