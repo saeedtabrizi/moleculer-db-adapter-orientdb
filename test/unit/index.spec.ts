@@ -1,11 +1,11 @@
 "use strict";
 
-import { ServiceBroker, ServiceSchema } from "moleculer";
+import { Context, ServiceBroker, ServiceSchema } from "moleculer";
 import orientjs = require("orientjs");
 import { OrientDBAdapter, OrientDbServiceSchema } from "../../src";
 
 // tslint:disable-next-line: no-var-requires
-const DbService = require("moleculer-db");
+import DbService from "moleculer-db";
 
 describe("Test MyService", () => {
   const serverOpts = {
@@ -70,12 +70,12 @@ describe("Test MyService", () => {
   const adapter = new OrientDBAdapter<typeof p1>(serverOpts);
   const serviceSchema: OrientDbServiceSchema<any> = {
     name: "db-adapter-orientdb",
-    mixins: [DbService],
+    mixins: [DbService as any],
     adapter,
     database: databaseOpts,
     dataClass: classOpts as any,
     actions: {
-      test: async (ctx) => {
+      test: async (ctx: Context<any>) => {
         ctx.broker.logger.info(
           `Test action was called with name: '${ctx.params.name}' parameter`,
         );
@@ -195,6 +195,14 @@ describe("Test MyService", () => {
         searchFields: "firstname",
       });
       expect(c).toHaveLength(1);
+    });
+
+    it("should call 'find' and return two objects", async () => {
+      await adapter.insert(p1);
+      await adapter.insert(p2);
+      await adapter.insert(p3);
+      const c = await adapter.find({query: {$or: [ {$and: [{ fname: "saeed"}, { age: {$gt: 18}}]}, {age: 25}]}});
+      expect(c).toHaveLength(2);
     });
 
     it("should call 'create' and return single object", async () => {

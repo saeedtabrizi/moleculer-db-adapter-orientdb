@@ -6,9 +6,7 @@
 
 "use strict";
 
-import { EventEmitter } from "events";
-import { Service, ServiceBroker } from "moleculer";
-import Moleculer = require("moleculer");
+import { Service, ServiceBroker, ServiceSchema } from "moleculer";
 import {
   CursorOptions,
   DbAdapter,
@@ -18,9 +16,7 @@ import {
 } from "moleculer-db";
 import * as orientjs from "orientjs";
 import { isNumber } from "util";
-
-export interface OrientDbServiceSchema<E>
-  extends Moleculer.ServiceSchema {
+export interface OrientDbServiceSchema<E> extends ServiceSchema {
   adapter: OrientDBAdapter<E>;
   database: orientjs.DatabaseOptions;
   dataClass: {
@@ -560,7 +556,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
     Q = orientjs.OQuery<T>
   >(params?: C, isCounting = false): Q {
     const svc = this.service;
-    const db = svc && svc.adapter.database;
+    const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
     try {
       if (!db) {
         throw new Error("Database not initialized");
@@ -590,12 +586,22 @@ export class OrientDBAdapter<E> implements DbAdapter {
           }
         } else {
           if (params.query) {
-            q = q.where(params.query);
+            const s = this.processJsonQuery(params.query);
+            console.log(s);
           }
         }
         // Sort
         if (params.sort) {
-          q = q.order(params.sort);
+          const srt = Array.isArray(params.sort) ? params.sort : [params.sort];
+          const sort = {};
+          srt.forEach((xx) => {
+            if (xx.includes("-")) {
+              sort[xx] = "desc";
+            } else {
+              sort[xx] = "asc";
+            }
+          });
+          q = q.order(sort);
         }
         // Paging
         if (params.limit || params.offset) {
@@ -693,5 +699,63 @@ export class OrientDBAdapter<E> implements DbAdapter {
    */
   public runLive(query: string, options?: any): orientjs.LiveQuery {
     return this.database.liveQuery(query, options);
+  }
+
+  private ops = [
+    "$or",
+    "$and",
+    "$ne",
+    "$eq",
+    "$ne",
+    "$gt",
+    "$lt",
+    "$le",
+    "$ge",
+    "$exists",
+  ];
+  private opCodes = {
+    $ne: "!=",
+    $eq: "=",
+    $gt: ">",
+    $lt: "<",
+    $le: "<=",
+    $ge: ">=",
+    $exists: "contains",
+  };
+  private processJsonQuery(q: any, operator?: string): string {
+    if (q) {
+      if (Array.isArray(q)) {
+        const qs = [];
+        for (const qi of q) {
+          qs.push(this.processJsonQuery(qi));
+        }
+        return `( ${qs.join(
+          " " + operator.replace("$", "").toLocaleUpperCase() + " ",
+        )} )`;
+      } else if (typeof q === "object") {
+        for (const k in q) {
+          if (k.startsWith("$") && this.ops.includes(k.toLocaleLowerCase())) {
+            if (Array.isArray(q[k])) {
+              return this.processJsonQuery(q[k], k);
+            } else if (typeof q[k] === "object") {
+              return k + " " + this.processJsonQuery(q[k], k);
+            } else {
+              return this.processJsonQuery(q[k], k);
+            }
+          } else {
+            if (typeof q[k] === "object" && !Array.isArray(q) && !operator ) {
+              return  k + " " + this.processJsonQuery(q[k]);
+            } else {
+              const v = typeof q[k] === "string" ? `"${q[k]}"` : q[k];
+              return `${k} ${operator ? operator : "="} ${v}`;
+            }
+          }
+        }
+      } else if (typeof q !== "object"  && this.ops.includes(operator)) {
+        return `${this.opCodes[operator]} ${q}`;
+      }
+    }
+    console.log("Processed");
+    return "";
   }
 }
