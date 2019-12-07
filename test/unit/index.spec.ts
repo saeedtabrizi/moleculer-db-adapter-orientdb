@@ -14,7 +14,11 @@ describe("Test MyService", () => {
     username: "root",
     password: "root",
   };
-  const databaseOpts: orientjs.DatabaseOptions = { name: "TestDB", type: "graph", storage: "memory" };
+  const databaseOpts: orientjs.DatabaseOptions = {
+    name: "TestDB",
+    type: "graph",
+    storage: "memory",
+  };
   const classOpts = {
     name: "Person",
     parentName: "V",
@@ -36,11 +40,17 @@ describe("Test MyService", () => {
       id: {
         type: "String",
         default: "uuid()",
-       // readonly: true,
-       custom: { alias: "_id"},
+        // readonly: true,
+        custom: { alias: "_id" },
         ifnotexist: true,
       },
-      firstname: { type: "String", ifnotexist: true, min: 1, max: 50, mandatory: true },
+      firstname: {
+        type: "String",
+        ifnotexist: true,
+        min: 1,
+        max: 50,
+        mandatory: true,
+      },
       lastname: { type: "String", ifnotexist: true, min: 1, max: 50 },
       title: { type: "String", ifnotexist: true, min: 2, max: 15 },
       gender: {
@@ -58,7 +68,7 @@ describe("Test MyService", () => {
         ifnotexist: true,
         default: "uuid()",
         readonly: true,
-         custom: { alias: "_rowid"},
+        custom: { alias: "_rowid" },
       },
       createdAt: {
         ifnotexist: true,
@@ -197,11 +207,30 @@ describe("Test MyService", () => {
       expect(c).toHaveLength(1);
     });
 
-    it("should call 'find' and return two objects", async () => {
+    it("should call 'find' by query object and return two objects", async () => {
       await adapter.insert(p1);
       await adapter.insert(p2);
       await adapter.insert(p3);
-      const c = await adapter.find({query: {$or: [ {$and: [{ fname: "saeed"}, { age: {$gt: 18}}]}, {age: 25}]}});
+      const c = await adapter.find({
+        query: {
+          $or: [
+            { $and: [{ firstname: "saeed" }, { age: { $gt: 18 } }] },
+            { age: { $lte: 18 } },
+          ],
+        },
+      });
+      expect(c).toHaveLength(2);
+    });
+
+    it("should call 'find' by query object IN clause and return two objects", async () => {
+      await adapter.insert(p1);
+      await adapter.insert(p2);
+      await adapter.insert(p3);
+      const c = await adapter.find({
+        query: {
+           age: { $in: [18, 25] },
+        },
+      });
       expect(c).toHaveLength(2);
     });
 

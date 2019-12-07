@@ -587,7 +587,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
         } else {
           if (params.query) {
             const s = this.processJsonQuery(params.query);
-            console.log(s);
+            q = q.where(s);
           }
         }
         // Sort
@@ -704,34 +704,47 @@ export class OrientDBAdapter<E> implements DbAdapter {
   private ops = [
     "$or",
     "$and",
+    "$nor",
     "$ne",
+    "$in",
     "$eq",
-    "$ne",
     "$gt",
     "$lt",
-    "$le",
-    "$ge",
+    "$lte",
+    "$gte",
+    "$nin",
+    "$regex",
     "$exists",
   ];
   private opCodes = {
-    $ne: "!=",
+    $nor: "NOT OR",
+    $ne: "<>",
     $eq: "=",
     $gt: ">",
     $lt: "<",
-    $le: "<=",
-    $ge: ">=",
+    $lte: "<=",
+    $gte: ">=",
+    $in: "in",
+    $nin: "not in",
+    $regex: "like",
     $exists: "contains",
   };
   private processJsonQuery(q: any, operator?: string): string {
     if (q) {
       if (Array.isArray(q)) {
-        const qs = [];
-        for (const qi of q) {
-          qs.push(this.processJsonQuery(qi));
+        if (operator === "$in") {
+          const qn = q.map((xx) => typeof xx === "string" ? `'${xx}'` : xx);
+          return this.opCodes[operator] + "[" + qn.join(",") + "]";
+        } else {
+          const qs = [];
+          for (const qi of q) {
+            qs.push(this.processJsonQuery(qi));
+          }
+          return `( ${qs.join(
+            " " + operator.replace("$", "").toLocaleUpperCase() + " ",
+          )} )`;
         }
-        return `( ${qs.join(
-          " " + operator.replace("$", "").toLocaleUpperCase() + " ",
-        )} )`;
+
       } else if (typeof q === "object") {
         for (const k in q) {
           if (k.startsWith("$") && this.ops.includes(k.toLocaleLowerCase())) {
@@ -755,7 +768,6 @@ export class OrientDBAdapter<E> implements DbAdapter {
         return `${this.opCodes[operator]} ${q}`;
       }
     }
-    console.log("Processed");
     return "";
   }
 }
