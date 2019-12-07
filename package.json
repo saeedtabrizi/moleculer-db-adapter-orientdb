@@ -1,6 +1,6 @@
 {
   "name": "moleculer-db-adapter-orientdb",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Moleculer orientdb database adapter",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -74,7 +74,6 @@
     "node": ">= 13.1.x"
   },
   "dependencies": {
-
     "moleculer": "next",
     "@types/orientjs": "^3.0.10",
     "moleculer-db": "0.8.3",
