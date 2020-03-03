@@ -41,7 +41,7 @@ describe('Test MyService', () => {
         ],
         properties: {
             id: {
-                type: 'String',
+                type: 'Integer',
                 default: 'uuid()',
                 // readonly: true,
                 custom: { alias: '_id' },
@@ -83,7 +83,7 @@ describe('Test MyService', () => {
     const adapter = new OrientDBAdapter<typeof p1>(serverOpts);
     const serviceSchema: OrientDbServiceSchema<any> = {
         name: 'db-adapter-orientdb',
-        mixins: [DbService as any],
+        mixins: [DbService],
         adapter,
         database: databaseOpts,
         dataClass: classOpts as any,
@@ -316,6 +316,23 @@ describe('Test MyService', () => {
             const c = await broker.call<any, any>('db-adapter-orientdb.create', p1);
             expect(c).toBeDefined();
             expect(c.firstname).toBe(p1.firstname);
+        });
+
+        it("should call 'get' and return single object", async () => {
+            const c1 = await broker.call<any, any>('db-adapter-orientdb.create', p1);
+            expect(c1).toBeDefined();
+            expect(c1.firstname).toBe(p1.firstname);
+            const c2 = await broker.call<any, any>('db-adapter-orientdb.create', p2);
+            expect(c2).toBeDefined();
+            expect(c2.firstname).toBe(p2.firstname);
+            const c3 = await broker.call<any, any>('db-adapter-orientdb.get', { id: c1.id });
+            expect(c3).toBeDefined();
+            expect(c3.id).toBe(c1.id);
+            expect(c3.firstname).toBe(c1.firstname);
+            const c4 = await broker.call<any, any>('db-adapter-orientdb.get', { id: c2.id });
+            expect(c4).toBeDefined();
+            expect(c4.id).toBe(c2.id);
+            expect(c4.firstname).toBe(c4.firstname);
         });
 
         it("should call 'update' and return single object", async () => {

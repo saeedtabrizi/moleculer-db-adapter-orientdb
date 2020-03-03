@@ -10,7 +10,7 @@
 'use strict';
 import Moleculer from 'moleculer';
 import { Service, ServiceBroker, ServiceSchema } from 'moleculer';
-import DbService from 'moleculer-db';
+import DbService, { DbServiceSettings } from 'moleculer-db';
 import { CursorOptions, DbAdapter, FilterOptions, QueryOptions } from 'moleculer-db';
 import * as orientjs from 'orientjs';
 import { isNumber } from 'util';
@@ -18,6 +18,7 @@ import { isNumber } from 'util';
 export interface OrientDbServiceSchema<E, S extends Moleculer.ServiceSettingSchema = Moleculer.ServiceSettingSchema>
     extends ServiceSchema<S> {
     adapter: OrientDBAdapter<E>;
+    settings?: S & DbServiceSettings ;
     database: orientjs.DatabaseOptions;
     dataClass: {
         name: string;
@@ -187,6 +188,15 @@ export class OrientDBAdapter<E> implements DbAdapter {
         return Promise.resolve();
     }
 
+    private async getDatabase(): Promise<orientjs.ODatabaseSession>{
+        if(!this.database){
+            const { database } = this.service.schema;
+            const sessions = await this.client.sessions(database);
+            this.database = await sessions.acquire();
+        }
+        return this.database;
+    }
+
     /**
      * Find all entities by filters.
      *
@@ -203,7 +213,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
      *
      * @memberof OrientDBAdapter
      */
-    public async find<R, C = CursorOptions<R>>(filters?: C) {
+    public async find<R, C = CursorOptions<R>>(filters?: C): Promise<R[]> {
         return this.createCursor<R, C>(filters, false).all<R>();
     }
 
@@ -214,7 +224,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
      * @returns {Promise}
      * @memberof OrientDBAdapter
      */
-    public async findOne<R, Q = any>(query: Q) {
+    public async findOne<R, Q = any>(query: Q): Promise<R> {
         return this.createCursor<R>({ query }, false).one<R>();
     }
 
@@ -228,9 +238,8 @@ export class OrientDBAdapter<E> implements DbAdapter {
      */
     public async findById<R>(id: string): Promise<R> {
         const svc = this.service;
-        const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
         try {
-            return this.createCursor<R>({ [svc.schema.settings.idField]: id }, false).one<R>();
+            return this.createCursor<R>({ query: {[svc.schema.settings.idField]: id} }, false).one<R>();
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' findByIds`, error);
         }
@@ -244,16 +253,16 @@ export class OrientDBAdapter<E> implements DbAdapter {
      *
      * @memberof OrientDBAdapter
      */
-    public async findByIds<R>(idList: Array<number | string>) {
+    public async findByIds<R>(idList: Array<number | string>): Promise<R|R[]> {
         const svc = this.service;
         const db: orientjs.ODatabaseSession = svc && svc.adapter.database;
         try {
-            // const s = await this.client.sessions();
-            // const db = await s.acquire();
-            const r = await db.query<R>(`SELECT * FROM ${this.dataClass.name} WHERE ${svc.schema.idField} IN :ids`, {
-                params: { ids: idList },
-            });
-            return r.all();
+            if(Array.isArray(idList)){
+                return this.createCursor<R>({ query: {[svc.schema.settings.idField]: {$in: idList} } }, false).all<R>();
+            } else {
+                return this.createCursor<R>({ query: {[svc.schema.settings.idField]: idList} }, false).one<R>();
+            }
+           
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' findByIds`, error);
         }
@@ -585,6 +594,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
         delete entity['@class'];
         delete entity['@version'];
         delete entity['@rid'];
+        delete entity['@type'];
         return entity;
     }
 
