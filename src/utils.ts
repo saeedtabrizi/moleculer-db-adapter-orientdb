@@ -1,6 +1,6 @@
 export type ExpressionType = 'BITWISE' | 'LOGICAL' | 'UNARY';
 export type FilterExpression = string | Record<string, any>;
-export type OpMapType = Record<string, { opCode: string; type: ExpressionType }>;
+export type OpMapType = Record<string, { opCode: string; type: ExpressionType; prefix?: string }>;
 const opMap: OpMapType = {
     $eq: { opCode: '=', type: 'BITWISE' },
     $ne: { opCode: '<>', type: 'BITWISE' },
@@ -10,6 +10,7 @@ const opMap: OpMapType = {
     $lte: { opCode: '<=', type: 'BITWISE' },
     $or: { opCode: 'OR', type: 'LOGICAL' },
     $and: { opCode: 'AND', type: 'LOGICAL' },
+    $nor: { opCode: 'OR', type: 'LOGICAL', prefix: '$not' },
     $not: { opCode: 'NOT', type: 'UNARY' },
     $in: { opCode: 'IN', type: 'BITWISE' },
     $nin: { opCode: 'NOT IN', type: 'BITWISE' },
@@ -37,17 +38,21 @@ function buildStatementFromExpression(filter: FilterExpression, pkey?: string): 
             if (filter.hasOwnProperty(lhs)) {
                 const rhs = filter[lhs];
                 if (lhs.startsWith('$')) {
-                    if (Array.isArray(rhs) && ['$or'].includes(lhs)) {
+                    if (Array.isArray(rhs) && ['$or', '$and', '$nor'].includes(lhs)) {
+                        const op = opMap[lhs];
                         if (r.length >= 1) {
                             r.push(` AND `);
                         }
-                        if (r.length === 0 && lhs === '$not') {
-                            r.push(` NOT `);
+                        if (r.length === 0 && lhs === '$nor') {
+                            const cop = opMap[op.prefix];
+                            r.push(` ${cop.opCode} `);
                         }
                         r.push(`(`);
                         for (const item of rhs) {
                             r.push(buildStatementFromExpression(item, lhs));
+                            r.push(` ${op.opCode} `);
                         }
+                        r.pop();
                         r.push(`)`);
                     } else {
                         r.push(buildStatementFromExpression(rhs, lhs));
@@ -94,6 +99,9 @@ function buildStatementFromExpression(filter: FilterExpression, pkey?: string): 
             const ss = '[' + items.join(' , ') + ']';
             const z = `${op.opCode} ${ss}`;
             r.push(z);
+        } else {
+            console.log('NOT IMPLEMENTED QUERY CONDITION');
+            // r.push(z);
         }
     }
     const s = r.join(` `);

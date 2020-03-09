@@ -218,17 +218,33 @@ describe('Test MyService', () => {
             expect(c).toHaveLength(1);
         });
 
-        it("should call 'find' with two condition and return 1 object", async () => {
+        it("should call 'find' for 'AND' expression and return 1 object", async () => {
+            await adapter.insert(p1);
+            await adapter.insert(p2);
+            await adapter.insert(p3);
+            const c1 = await adapter.find({
+                query: { age: 15, firstname: 'sara' },
+            });
+            expect(c1).toHaveLength(1);
+            const c2 = await adapter.find({
+                query: { $and: [{ age: 25 }, { firstname: 'majid' }] },
+            });
+            expect(c2).toHaveLength(1);
+        });
+
+        it("should call 'find' by query object for 'NOT' expression and return two objects", async () => {
             await adapter.insert(p1);
             await adapter.insert(p2);
             await adapter.insert(p3);
             const c = await adapter.find({
-                query: { age: 15, name: 'sara' },
+                query: {
+                    $not: { firstname: 'saeed' },
+                },
             });
-            expect(c).toHaveLength(1);
+            expect(c).toHaveLength(2);
         });
 
-        it("should call 'find' by query object and return two objects", async () => {
+        it("should call 'find' by query object for 'OR' expression and return two objects", async () => {
             await adapter.insert(p1);
             await adapter.insert(p2);
             await adapter.insert(p3);
@@ -240,7 +256,19 @@ describe('Test MyService', () => {
             expect(c).toHaveLength(2);
         });
 
-        it("should call 'find' by query object IN clause and return two objects", async () => {
+        it("should call 'find' by query object for 'NOR' expression and return single object", async () => {
+            await adapter.insert(p1);
+            await adapter.insert(p2);
+            await adapter.insert(p3);
+            const c = await adapter.find({
+                query: {
+                    $nor: [{ firstname: 'saeed' }, { age: 15 }],
+                },
+            });
+            expect(c).toHaveLength(1);
+        });
+
+        it("should call 'find' by query object 'IN' clause and return two objects", async () => {
             await adapter.insert(p1);
             await adapter.insert(p2);
             await adapter.insert(p3);
