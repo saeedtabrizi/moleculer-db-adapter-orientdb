@@ -41,9 +41,9 @@ describe('Test MyService', () => {
         ],
         properties: {
             id: {
-                type: 'Integer',
-                default: 'uuid()',
-                // readonly: true,
+                type: 'Long',
+                default: `"sequence('seq_Person_id').next()"`,
+                readonly: true,
                 custom: { alias: '_id' },
                 ifnotexist: true,
             },
@@ -165,20 +165,20 @@ describe('Test MyService', () => {
         });
 
         it("should call 'count' in adapter and return 1 ", async () => {
-            await adapter.insert(p1);
+            const r1 = await adapter.insert(p1);
             const c = await adapter.count();
             expect(c).toEqual(1);
         });
         it("should call 'count' and return 1", async () => {
-            await adapter.insert(p1);
+            const r1 = await adapter.insert(p1);
             const c = await adapter.count();
             expect(c).toEqual(1);
         });
 
         it("should call 'count' and return 2", async () => {
-            await adapter.insert(p1);
-            await adapter.insert(p2);
-            await adapter.insert(p3);
+            const r1 = await adapter.insert(p1);
+            const r2 = await adapter.insert(p2);
+            const r3 = await adapter.insert(p3);
             const c = await adapter.count({ search: 'M', searchFields: 'gender' });
             expect(c).toEqual(2);
         });
@@ -204,6 +204,26 @@ describe('Test MyService', () => {
             const c = await adapter.find({
                 search: 'saeed',
                 searchFields: 'firstname',
+            });
+            expect(c).toHaveLength(1);
+        });
+
+        it("should call 'find' and return 1 object", async () => {
+            await adapter.insert(p1);
+            await adapter.insert(p2);
+            await adapter.insert(p3);
+            const c = await adapter.find({
+                query: { age: 15 },
+            });
+            expect(c).toHaveLength(1);
+        });
+
+        it("should call 'find' with two condition and return 1 object", async () => {
+            await adapter.insert(p1);
+            await adapter.insert(p2);
+            await adapter.insert(p3);
+            const c = await adapter.find({
+                query: { age: 15, name: 'sara' },
             });
             expect(c).toHaveLength(1);
         });

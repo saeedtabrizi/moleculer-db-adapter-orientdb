@@ -14,6 +14,7 @@ import DbService, { DbServiceSettings } from 'moleculer-db';
 import { CursorOptions, DbAdapter, FilterOptions, QueryOptions } from 'moleculer-db';
 import * as orientjs from 'orientjs';
 import { isNumber } from 'util';
+import { getQueryFromFilterExpression } from './utils';
 
 export interface OrientDbServiceSchema<E, S extends Moleculer.ServiceSettingSchema = Moleculer.ServiceSettingSchema>
     extends ServiceSchema<S> {
@@ -242,6 +243,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             return this.createCursor<R>({ query: {[svc.schema.settings.idField]: id} }, false).one<R>();
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' findByIds`, error);
+            throw error;
         }
     }
 
@@ -265,6 +267,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
            
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' findByIds`, error);
+            throw error;
         }
     }
 
@@ -300,14 +303,14 @@ export class OrientDBAdapter<E> implements DbAdapter {
         const db: orientjs.ODatabase = svc && svc.adapter.database;
         const seqs = svc.schema.dataClass.sequences;
         try {
-            if (seqs) {
-                for (const key in seqs) {
-                    if (seqs.hasOwnProperty(key)) {
-                        const name = seqs[key].name;
-                        entity[key] = db.rawExpression(`sequence('${name}').next()`);
-                    }
-                }
-            }
+            // if (seqs) {
+            //     for (const key in seqs) {
+            //         if (seqs.hasOwnProperty(key)) {
+            //             const name = seqs[key].name;
+            //             entity[key] = db.rawExpression(`sequence('${name}').next()`);
+            //         }
+            //     }
+            // }
             const r = await db
                 .insert()
                 .into(svc.schema.dataClass.name)
@@ -316,6 +319,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             return r;
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' insert record`, error);
+            throw error;
         }
     }
 
@@ -352,6 +356,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             return A;
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' insert records`, error);
+            throw error;
         }
     }
 
@@ -378,6 +383,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             return r;
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' update records`, error);
+            throw error;
         }
     }
 
@@ -406,6 +412,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             return r;
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' update record`, error);
+            throw error;
         }
     }
 
@@ -431,6 +438,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             return r;
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' remove records`, error);
+            throw error;
         }
     }
 
@@ -457,6 +465,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             return { id } as any;
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' remove record`, error);
+            throw error;
         }
     }
 
@@ -474,6 +483,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
             await db.command(`TRUNCATE CLASS ${svc.schema.dataClass.name} UNSAFE`).one();
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' clear records`, error);
+            throw error;
         }
     }
 
@@ -532,7 +542,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
                     }
                 } else {
                     if (params.query) {
-                        const s = this.processJsonQuery(params.query);
+                        const s = getQueryFromFilterExpression(params.query);
                         q = q.where(s);
                     }
                 }
@@ -565,6 +575,7 @@ export class OrientDBAdapter<E> implements DbAdapter {
                 .from(svc.schema.dataClass.name) as any;
         } catch (error) {
             svc.logger.error(`Error occured in '${svc.schema.dataClass.name}' createCursor`, error);
+            throw error;
         }
     }
 
@@ -643,70 +654,70 @@ export class OrientDBAdapter<E> implements DbAdapter {
         return this.database.liveQuery(query, options);
     }
 
-    private ops = [
-        '$or',
-        '$and',
-        '$nor',
-        '$ne',
-        '$in',
-        '$eq',
-        '$gt',
-        '$lt',
-        '$lte',
-        '$gte',
-        '$nin',
-        '$regex',
-        '$exists',
-    ];
-    private opCodes = {
-        $nor: 'NOT OR',
-        $ne: '<>',
-        $eq: '=',
-        $gt: '>',
-        $lt: '<',
-        $lte: '<=',
-        $gte: '>=',
-        $in: 'in',
-        $nin: 'not in',
-        $regex: 'like',
-        $exists: 'contains',
-    };
-    private processJsonQuery(q: any, operator?: string): string {
-        if (q) {
-            if (Array.isArray(q)) {
-                if (operator === '$in') {
-                    const qn = q.map(xx => (typeof xx === 'string' ? `'${xx}'` : xx));
-                    return this.opCodes[operator] + '[' + qn.join(',') + ']';
-                } else {
-                    const qs = [];
-                    for (const qi of q) {
-                        qs.push(this.processJsonQuery(qi));
-                    }
-                    return `( ${qs.join(' ' + operator.replace('$', '').toLocaleUpperCase() + ' ')} )`;
-                }
-            } else if (typeof q === 'object') {
-                for (const k in q) {
-                    if (k.startsWith('$') && this.ops.includes(k.toLocaleLowerCase())) {
-                        if (Array.isArray(q[k])) {
-                            return this.processJsonQuery(q[k], k);
-                        } else if (typeof q[k] === 'object') {
-                            return k + ' ' + this.processJsonQuery(q[k], k);
-                        } else {
-                            return this.processJsonQuery(q[k], k);
-                        }
-                    } else {
-                        if (typeof q[k] === 'object' && !Array.isArray(q) && !operator) {
-                            return k + ' ' + this.processJsonQuery(q[k]);
-                        } else {
-                            const v = typeof q[k] === 'string' ? `"${q[k]}"` : q[k];
-                            return `${k} ${operator ? operator : '='} ${v}`;
-                        }
-                    }
-                }
-            } else if (typeof q !== 'object' && this.ops.includes(operator)) {
-                return `${this.opCodes[operator]} ${q}`;
-            }
-        }
-        return '';
-    }
+    // private ops = [
+    //     '$or',
+    //     '$and',
+    //     '$nor',
+    //     '$ne',
+    //     '$in',
+    //     '$eq',
+    //     '$gt',
+    //     '$lt',
+    //     '$lte',
+    //     '$gte',
+    //     '$nin',
+    //     '$regex',
+    //     '$exists',
+    // ];
+    // private opCodes = {
+    //     $nor: 'NOT OR',
+    //     $ne: '<>',
+    //     $eq: '=',
+    //     $gt: '>',
+    //     $lt: '<',
+    //     $lte: '<=',
+    //     $gte: '>=',
+    //     $in: 'in',
+    //     $nin: 'not in',
+    //     $regex: 'matches',
+    //     $exists: 'contains',
+    // };
+    // private processJsonQuery(q: any, operator?: string): string {
+    //     if (q) {
+    //         if (Array.isArray(q)) {
+    //             if (operator === '$in') {
+    //                 const qn = q.map(xx => (typeof xx === 'string' ? `'${xx}'` : xx));
+    //                 return this.opCodes[operator] + '[' + qn.join(',') + ']';
+    //             } else {
+    //                 const qs = [];
+    //                 for (const qi of q) {
+    //                     qs.push(this.processJsonQuery(qi));
+    //                 }
+    //                 return `( ${qs.join(' ' + operator.replace('$', '').toLocaleUpperCase() + ' ')} )`;
+    //             }
+    //         } else if (typeof q === 'object') {
+    //             for (const k in q) {
+    //                 if (k.startsWith('$') && this.ops.includes(k.toLocaleLowerCase())) {
+    //                     if (Array.isArray(q[k])) {
+    //                         return this.processJsonQuery(q[k], k);
+    //                     } else if (typeof q[k] === 'object') {
+    //                         return k + ' ' + this.processJsonQuery(q[k], k);
+    //                     } else {
+    //                         return this.processJsonQuery(q[k], k);
+    //                     }
+    //                 } else {
+    //                     if (typeof q[k] === 'object' && !Array.isArray(q) && !operator) {
+    //                         return k + ' ' + this.processJsonQuery(q[k]);
+    //                     } else {
+    //                         const v = typeof q[k] === 'string' ? `"${q[k]}"` : q[k];
+    //                         return `${k} ${operator ? operator : '='} ${v}`;
+    //                     }
+    //                 }
+    //             }
+    //         } else if (typeof q !== 'object' && this.ops.includes(operator)) {
+    //             return `${this.opCodes[operator]} ${q}`;
+    //         }
+    //     }
+    //     return '';
+    // }
 }
